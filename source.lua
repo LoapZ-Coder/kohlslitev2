@@ -10,7 +10,7 @@
  \ \   ___  \ \  \\\  \ \   __  \ \  \    \ \_____  \ \  \    \ \  \   \ \  \ \ \  \_|/__  
   \ \  \\ \  \ \  \\\  \ \  \ \  \ \  \____\|____|\  \ \  \____\ \  \   \ \  \ \ \  \_|\ \ 
    \ \__\\ \__\ \_______\ \__\ \__\ \_______\____\_\  \ \_______\ \__\   \ \__\ \ \_______\
-    \|__| \|__|\|_______|\|__|\|__|\|_______|\_________\|_______|\|__|    \|__|  \|_______| Infinity
+    \|__| \|__|\|_______|\|__|\|__|\|_______|\_________\|_______|\|__|    \|__|  \|_______| XZ1
 
 View the source here: https://kohlslite.pages.dev/source.lua
 Kohlslite is updated here: https://github.com/S-PScripts/kohlslite/blob/main/source.lua
@@ -143,7 +143,7 @@ end
 getgenv().default_prefix = "." 
 
 -- The version of KohlsLite
-getgenv().klversion = "Infinity"
+getgenv().klversion = "XZ1"
 
 -- Notifications
 local function Remind(msg, length)
@@ -166,10 +166,10 @@ local IYchecks = {
 -- Speak function
 local function Speak(msg)
     if IYchecks.legacyChat then
-        print("test")
+       -- print("test")
 		game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
     else 
-        print('test 2')
+       -- print('test 2')
 		game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(msg)
     end
 end
@@ -454,9 +454,16 @@ else
 	prefix = getgenv().default_prefix
 end
 
+local apiKey
+if getgenv().apiKey then
+	apiKey = getgenv().apiKey
+else
+	apiKey = ""
+end
+
 -- Defaults (you can change these)
 -- no longer works (I'll find a fix if I can)
-local defaults = {".tnok", ".antikill me", ".cmdbar"} --".antimsg me"
+local defaults = {".tnok", ".cmdbar"} --".antimsg me"
 
 -- Misc variables (Do not edit these! They are for bug fixes... but they don't even work...).
 local backend_stuff = {
@@ -837,7 +844,7 @@ if getgenv().run_on_sight then
 	--
 else
 	getgenv().run_on_sight = {
-		["ScriptingProgrammer"] = {".lua print('da owner joined so coolz')"}
+		["ScriptingProgrammer"] = {}
 	}
 end
 
@@ -1094,10 +1101,10 @@ local partColourer = Instance.new("Part")
 partColourer.Color = Color3.new(1,1,1)
 local selectedColour = partColourer.Color
 
-kahinstance = workspace.Terrain:FindFirstChild(GAMEFOLDER):FindFirstChild("Folder")
+kahinstance = workspace
 local VisBindable = Instance.new("BindableEvent")
 
--- I will be rewriting the anti system... or not.
+-- ANTI TOGGLES
 antis = {
     antiblind = false,
     antivoid = false,
@@ -1173,7 +1180,7 @@ local antisall = {
     antisize = false
 }
 
--- This is NOT implemented due to lack of interest; you'll have to do that yourself.
+-- This is NOT implemented as I have practically quit KAH
 local antisplayers = { -- Antis for specific players
     antiblind = {},
     antivoid = {},
@@ -1264,16 +1271,9 @@ print(GAMEFOLDER)
 -- Variables for moving
 local movestatus = false
 
-if kah_np == false then
-Kohls = workspace.Terrain:WaitForChild(GAMEFOLDER)
-Map = Kohls:WaitForChild("Workspace")
-Admin = Kohls:WaitForChild("Admin")
-Pads = Admin:WaitForChild("Pads"):GetChildren()
-else
 Kohls = workspace.Terrain._Game
 Admin = Kohls:WaitForChild("Admin")
 Pads = Admin:WaitForChild("Pads"):GetChildren()
-end
 
 -- Variables for moving [old]
 --[[
@@ -2732,8 +2732,25 @@ TYPE = (zamn and game.Players.LocalPlayer.Chatted or game.TextChatService.Messag
 			Remind("Sorry, this command is not in KohlsLite. Please use CMD v3 for it.")
 	end
 
-	if string.sub(msg, 1, #prefix + 6) == prefix..'aichat' then
-			Remind("Sorry, this command is not in KohlsLite. Please use CMD v3 for it.")
+	if string.sub(msg:lower(), 1, #prefix + 6) == prefix.."aichat" then
+		--print("test")
+		print(apiKey)
+		if apiKey == "" then Remind("Please enter API key via .apikey.", 3) return end
+		local prompt = string.sub(msg, #prefix + 8)
+
+		if prompt and string.gsub(prompt, " ", "") ~= "" then
+			task.spawn(function()
+				local aiResponse = askGroq(prompt)
+
+				game.ReplicatedStorage.DefaultChatSystemChatEvents
+					.SayMessageRequest:FireServer(aiResponse, "All")
+			end)
+		end
+	end
+
+	if string.sub(msg, 1, #prefix + 6) == prefix..'apikey' then
+		apiKey = string.sub(msg, #prefix + 8)
+		Remind("Assigned API Key to ".. apiKey)
 	end
 
 	if string.sub(msg, 1, #prefix + 6) == prefix..'thorns' then
@@ -12664,9 +12681,9 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		end
 
 		for i, v in game.Players:GetPlayers() do
-				if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-					if v.Backpack then
-                                        if v.Backpack:FindFirstChildOfClass("Tool") then
+			if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
+				if v:FindFirstChild("Backpack") then
+                    if v.Backpack:FindFirstChildOfClass("Tool") then
 						if gear_antis.antigear then
 							gear_antis_punish(v)
 							Regen()
@@ -12682,92 +12699,73 @@ game:GetService("RunService").RenderStepped:Connect(function()
 							end
 						end
 					end
-                                        end
-				end
+            	end
+			end
 
-				if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-					if v.Character and v.Character:FindFirstChildOfClass("Tool") then
-						if gear_antis.antigear then
-							gear_antis_punish(v)
-							Regen()
+			if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
+				if v.Character and v.Character:FindFirstChildOfClass("Tool") then
+					if gear_antis.antigear then
+						gear_antis_punish(v)
+						Regen()
 
-							if player_relate.crash_an then
-								Chat("h \n\n\n\n\n "..v.Name.." tried using a tool with anti-gear enabled. \n\n\n\n\n")
-							end
-							da_on = true
+						if player_relate.crash_an then
+							Chat("h \n\n\n\n\n "..v.Name.." tried using a tool with anti-gear enabled. \n\n\n\n\n")
+						end
+						da_on = true
 
-							if allow_gb_alerts then
-								Remind("Anti-gear triggered by "..v.Name)
-								print("Anti-gear triggered by "..v.Name)
-							end
+						if allow_gb_alerts then
+							Remind("Anti-gear triggered by "..v.Name)
+							print("Anti-gear triggered by "..v.Name)
 						end
 					end
 				end
-		end
-
--- oh no it doesn't work! feel free to fix this.
---[[
-		for i, tool in ipairs(workspace:GetDescendants()) do
-    			if tool:IsA("Tool") and gear_antis.antigear then
-					Chat("ungear others")
-					Chat("punish others")
-					Chat("clr")
-					Regen()
-
-					if player_relate.crash_an then
-						Chat("h \n\n\n\n\n Tool found on workspace with anti-gear on. \n\n\n\n\n")
-					end
-
-					if allow_gb_alerts then
-						Remind("Tool found on workspace with anti-gear on.")
-						print("Tool found on workspace with anti-gear on.")
-					end
 			end
-		end ]]
+		end
 
 		for i, tool in crashTools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if crash_settings.emranticrash then
-								Chat("ungear others")
-								Chat("punish others")
-								Chat("clr")
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if crash_settings.emranticrash then
+									Chat("ungear others")
+									Chat("punish others")
+									Chat("clr")
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n Someone tried using a crash tool with anti-crash enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n Someone tried using a crash tool with anti-crash enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-crash triggered by "..v.Name)
-									print("Anti-crash triggered by "..v.Name)
-								end
+									if allow_gb_alerts then
+										Remind("Anti-crash triggered by "..v.Name)
+										print("Anti-crash triggered by "..v.Name)
+									end
 			
-								if crash_settings.autoblvgc then
-									mainbar_stuff.slockenabled = true
-								end
+									if crash_settings.autoblvgc then
+										mainbar_stuff.slockenabled = true
+									end
 							
-							elseif gear_antis.anticrash then
-								gear_antis_punish(v)
-								Regen()
+								elseif gear_antis.anticrash then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a crash tool with anti-crash enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a crash tool with anti-crash enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-crash triggered by "..v.Name)
-									print("Anti-crash triggered by "..v.Name)
-								end
+									if allow_gb_alerts then
+										Remind("Anti-crash triggered by "..v.Name)
+										print("Anti-crash triggered by "..v.Name)
+									end
 	
-								if crash_settings.autoblvgc then
-									table.insert(blacklist, v.Name)
+									if crash_settings.autoblvgc then
+										table.insert(blacklist, v.Name)
+									end
 								end
-							
-							else end
+							end
 						end
 					end
 
@@ -12836,19 +12834,21 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in attachTools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antiivory then
-								gear_antis_punish(v)
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antiivory then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a attaching tool with anti-attach2 enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a attaching tool with anti-attach2 enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-attach2 triggered by "..v.Name)
-									print("Anti-attach2 triggered by "..v.Name)
+									if allow_gb_alerts then
+										Remind("Anti-attach2 triggered by "..v.Name)
+										print("Anti-attach2 triggered by "..v.Name)
+									end
 								end
 							end
 						end
@@ -12894,19 +12894,21 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in PeriastronTools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antiperi then
-								gear_antis_punish(v)
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antiperi then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a periastron with anti-periastron enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a periastron with anti-periastron enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-periastron triggered by "..v.Name)
-									print("Anti-periastron triggered by "..v.Name)
+									if allow_gb_alerts then
+										Remind("Anti-periastron triggered by "..v.Name)
+										print("Anti-periastron triggered by "..v.Name)
+									end
 								end
 							end
 						end
@@ -12952,19 +12954,21 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in nogearTools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antigb then
-								gear_antis_punish(v)
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antigb then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a gearban tool with anti-gearban enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a gearban tool with anti-gearban enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-gearban triggered by "..v.Name)
-									print("Anti-gearban triggered by "..v.Name)
+									if allow_gb_alerts then
+										Remind("Anti-gearban triggered by "..v.Name)
+										print("Anti-gearban triggered by "..v.Name)
+									end
 								end
 							end
 						end
@@ -13009,22 +13013,24 @@ game:GetService("RunService").RenderStepped:Connect(function()
 
 		for i, tool in colourTools do
 				for i, v in game.Players:GetPlayers() do
-					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antipaint then
-								gear_antis_punish(v)
-								Regen()
+					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then 
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antipaint then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a paint tool with anti-paint enabled. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a paint tool with anti-paint enabled. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Anti-paint triggered by "..v.Name)
-									print("Anti-paint triggered by "..v.Name)
+									if allow_gb_alerts then
+										Remind("Anti-paint triggered by "..v.Name)
+										print("Anti-paint triggered by "..v.Name)
+									end
 								end
-							end
+							end						
 						end
 					end
 
@@ -13068,19 +13074,21 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in miscTools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.noblt then
-								gear_antis_punish(v)
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.noblt then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using a blacklisted tool. \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using a blacklisted tool. \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind("Blacklisted tool found on "..v.Name)
-									print("Blacklisted tool found on "..v.Name)
+									if allow_gb_alerts then
+										Remind("Blacklisted tool found on "..v.Name)
+										print("Blacklisted tool found on "..v.Name)
+									end
 								end
 							end
 						end
@@ -13126,19 +13134,21 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in ninejntools do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name ~= game.Players.LocalPlayer.Name and (not table.find(GWhitelisted, v.Name) and not table.find(pgwl, v.Name)) then
-						if v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antiraygun then
-								gear_antis_punish(v)
-								Regen()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antiraygun then
+									gear_antis_punish(v)
+									Regen()
 
-								if player_relate.crash_an then
-									Chat("h \n\n\n\n\n "..v.Name.." tried using the ray gun... 9jn doesn't like that! \n\n\n\n\n")
-								end
-								da_on = true
+									if player_relate.crash_an then
+										Chat("h \n\n\n\n\n "..v.Name.." tried using the ray gun... 9jn doesn't like that! \n\n\n\n\n")
+									end
+									da_on = true
 
-								if allow_gb_alerts then
-									Remind(v.Name.." used a tool 9jn doesn't like (ray gun)!")
-									print(v.Name.." used a tool 9jn doesn't like (ray gun)!")
+									if allow_gb_alerts then
+										Remind(v.Name.." used a tool 9jn doesn't like (ray gun)!")
+										print(v.Name.." used a tool 9jn doesn't like (ray gun)!")
+									end
 								end
 							end
 						end
@@ -13184,9 +13194,11 @@ game:GetService("RunService").RenderStepped:Connect(function()
 		for i, tool in crashToolsLP do
 				for i, v in game.Players:GetPlayers() do
 					if v.Name == game.Players.LocalPlayer.Name then
-						if v.Backpack and v.Backpack:FindFirstChild(tool) then
-							if gear_antis.antikick2 then
-								tool:Destroy()
+						if v:FindFirstChild("Backpack") then
+							if v.Backpack and v.Backpack:FindFirstChild(tool) then
+								if gear_antis.antikick2 then
+									tool:Destroy()
+								end
 							end
 						end
 					end
@@ -13201,17 +13213,43 @@ game:GetService("RunService").RenderStepped:Connect(function()
 				end
 		end
 
-                for i, gear in pairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
-                            if gear:IsA("Tool") and gear_antis.antitoolm == true then
-                                        gear:Destroy()
-                            end
-        	end
+		mybackpack = game.Players.LocalPlayer:FindFirstChild("Backpack")
+		if mybackpack then
+        	for i, gear in pairs(mybackpack:GetChildren()) do
+            	if gear:IsA("Tool") and gear_antis.antitoolm == true then
+            		gear:Destroy()
+            	end
+       		end
+		end
 
-                for i, gear in pairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
-                            if gear_antis.antitoolm2 == true then
-                                        gear:Destroy()
-                            end
-        	end
+        for i, gear in pairs(game.Players.LocalPlayer.Backpack:GetChildren()) do
+            if gear_antis.antitoolm2 == true then
+            	gear:Destroy()
+            end
+        end
+end)
+
+workspace.DescendantAdded:Connect(function(obj)
+	if not gear_antis.antigear then
+		return
+	end
+
+	if obj:IsA("Tool") then
+		Chat("ungear others")
+		Chat("punish others")
+		Chat("clr")
+
+		Regen()
+
+		if player_relate.crash_an then
+			Chat("h \n\n\n\n\n Tool found on workspace with anti-gear on. \n\n\n\n\n")
+		end
+
+		if allow_gb_alerts then
+			Remind("Tool found on workspace with anti-gear on.")
+			print("Tool found on workspace with anti-gear on.")
+		end
+	end
 end)
 
 -- stop dupe blacklist 
@@ -14388,6 +14426,49 @@ task.spawn(function()
   end
 
 end)
+
+-- AI CHAT
+
+local HttpService = game:GetService("HttpService")
+function askGroq(prompt)
+	local success, response = pcall(function()
+		return request({
+			Url = "https://api.groq.com/openai/v1/chat/completions",
+			Method = "POST",
+			Headers = {
+				["Content-Type"] = "application/json",
+				["Authorization"] = "Bearer " .. apiKey
+			},
+			Body = HttpService:JSONEncode({
+				model = "llama-3.3-70b-versatile",
+
+				messages = {
+					{
+						role = "user",
+						content = prompt
+					}
+				},
+
+				temperature = 0.7,
+				max_tokens = 200
+			})
+		})
+	end)
+
+	if success and response and response.Success then
+		local data = HttpService:JSONDecode(response.Body)
+
+		if data.choices
+			and data.choices[1]
+			and data.choices[1].message
+			and data.choices[1].message.content then
+
+			return data.choices[1].message.content
+		end
+	end
+
+	return "Error: Could not fetch response from AI."
+end
 
 -- GOTO
 function Goto()
@@ -19121,21 +19202,24 @@ function clearall()
 	end
 
 	for i, player in ipairs(game.Players:GetPlayers()) do
-   		local deleteTool = getTool(player.Backpack, "Delete")
-   		if deleteTool then
-       		local deleteRemote = deleteTool:FindFirstChild("RemoteEvent") or deleteTool:FindFirstChild("delete")
-       		if deleteRemote then
-           		for _, part in ipairs(workspace:GetDescendants()) do
-               		if part:IsA("BasePart") then
-                   		Delete(part, deleteRemote)
-               		end
-           		end
-       		else
-           		warn("Delete remote not found in tool for player " .. player.Name)
-       		end
-   		else
-       		warn("Delete tool not found in backpack for player " .. player.Name)
-   		end
+		bp = player:FindFirstChild("Backpack")
+		if bp then
+   			local deleteTool = getTool(bp, "Delete")
+   			if deleteTool then
+       			local deleteRemote = deleteTool:FindFirstChild("RemoteEvent") or deleteTool:FindFirstChild("delete")
+       			if deleteRemote then
+           			for _, part in ipairs(workspace:GetDescendants()) do
+               			if part:IsA("BasePart") then
+                   			Delete(part, deleteRemote)
+               			end
+           			end
+       			else
+           			warn("Delete remote not found in tool for player " .. player.Name)
+       			end
+   			else
+       			warn("Delete tool not found in backpack for player " .. player.Name)
+   			end
+		end
 	end
 end
 
