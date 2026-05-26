@@ -1102,7 +1102,12 @@ local partColourer = Instance.new("Part")
 partColourer.Color = Color3.new(1,1,1)
 local selectedColour = partColourer.Color
 
-kahinstance = workspace
+if kah_np then
+	kahinstance = workspace
+else
+	kahinstance = workspace.Terrain:FindFirstChild(GAMEFOLDER):FindFirstChild("Folder")
+end
+	
 local VisBindable = Instance.new("BindableEvent")
 
 -- ANTI TOGGLES
