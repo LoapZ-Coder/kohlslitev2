@@ -249,7 +249,7 @@ local Camera = workspace.Camera
 local Teams = game:GetService("Teams")
 --local TeamEvent = ReplicatedStorage.Remotes:WaitForChild("RequestTeamChange")
 
---local meleeEvent = ReplicatedStorage.meleeEvent
+local meleeEvent = ReplicatedStorage.meleeEvent
 
 local TeamList = {"Criminals", "Inmates", "Guards"}
 
@@ -1023,7 +1023,7 @@ local function IsArrestable(plr)
     return true
 end
 
---local aremote = ReplicatedStorage.Remotes.ArrestPlayer
+local aremote = ReplicatedStorage.Remotes.ArrestPlayer
 
 RunService.Heartbeat:Connect(function()
     local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
