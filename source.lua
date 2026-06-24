@@ -1,5 +1,5 @@
 getgenv().scriptname = "KohlsLite"
-getgenv().klversion = "0.3"
+getgenv().klversion = "0.4"
 local prefix = getgenv().prefix or "."
 
 local function SendCommand(cmd)
@@ -82,7 +82,7 @@ local config = {
     explode_count = 100,
     explode_interval = 0.8,
     prefix = prefix,
-    autoruncmds = {".admin", ".antifreeze", ".antijail", ".antipunish", ".autof3x", ".nkill"}
+    autoruncmds = {".admin", ".antifreeze", ".antijail", ".antipunish", ".autof3x", ".nkill", ".antikill"}
 }
 
 local function ensureFolder()
@@ -147,6 +147,8 @@ local regen_loop_enabled = false
 local antijail_enabled = false
 local antifreeze_enabled = false
 local antipunish_enabled = false
+local antikill_enabled = false
+local antikill_last = false
 local autof3x_done = false
 
 local admin_enabled = false
@@ -231,6 +233,9 @@ end
 
 local function findPlayer(input)
     if not input or input == "" then return nil end
+    if input == "me" then
+        return game.Players.LocalPlayer
+    end
     input = input:lower()
     for _, p in pairs(game.Players:GetPlayers()) do
         local name = p.Name:lower()
@@ -298,7 +303,7 @@ local function regenLoop()
     regen_loop_enabled = true
     while regen_loop_enabled do
         doRegen()
-        task.wait(0.5)
+        task.wait(0.001) -- 1ms
     end
 end
 
@@ -322,7 +327,7 @@ local function nKill()
     Notify("Removed "..count.." TouchInterests from Obby.")
 end
 
--- Anti-jail 
+-- Anti-jail
 task.spawn(function()
     local lastJailed = false
     while true do
@@ -344,7 +349,7 @@ task.spawn(function()
     end
 end)
 
--- Anti-freeze 
+-- Anti-freeze
 task.spawn(function()
     local lastFrozen = false
     while true do
@@ -376,7 +381,7 @@ task.spawn(function()
     end
 end)
 
--- Anti-punish 
+-- Anti-punish
 task.spawn(function()
     local lastPunished = false
     while true do
@@ -398,7 +403,33 @@ task.spawn(function()
     end
 end)
 
--- Admin loop (try to get admin, regen if no pad available)
+-- Anti-kill (auto respawn)
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if antikill_enabled then
+            local char = game.Players.LocalPlayer.Character
+            local dead = false
+            if char and char:FindFirstChild("Humanoid") then
+                if char.Humanoid.Health <= 0 then
+                    dead = true
+                end
+            else
+                dead = true
+            end
+            if dead and not antikill_last then
+                SendCommand("re")
+                antikill_last = true
+            elseif not dead then
+                antikill_last = false
+            end
+        else
+            antikill_last = false
+        end
+    end
+end)
+
+-- Admin loop
 local function adminLoop()
     while admin_enabled do
         local playerName = game.Players.LocalPlayer.Name
@@ -434,7 +465,7 @@ local function adminLoop()
     end
 end
 
--- Loopgrab: ensure all pads are owned by player, try to touch if not, regen as fallback
+-- Loopgrab
 local function loopgrabLoop()
     while loopgrab_enabled do
         local playerName = game.Players.LocalPlayer.Name
@@ -444,7 +475,6 @@ local function loopgrabLoop()
             for _, pad in pairs(pads:GetChildren()) do
                 if pad.Name ~= playerName .. "'s admin" then
                     allMine = false
-                    -- Try to grab this pad
                     local grabbed = false
                     if pad:FindFirstChild("Head") and pad.Head:FindFirstChild("TouchInterest") then
                         local head = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Head")
@@ -456,17 +486,24 @@ local function loopgrabLoop()
                         end
                     end
                     if not grabbed then
-                        -- If can't grab, regen to reset pads
                         doRegen()
-                        break -- after regen, restart the loop
+                        break
                     end
                 end
             end
-            if allMine then
-                -- All pads are mine, do nothing
-            end
         end
-        task.wait(0.001) -- 1ms loop for instant response
+        task.wait(0.001)
+    end
+end
+
+local function layCommand(target)
+    local plr = findPlayer(target)
+    if not plr then Notify("Player not found.") return end
+    local name = plr.Name
+    local cmds = {"seizure "..name, "reset "..name, "freeze "..name, "thaw "..name, "name "..name.." "..name, "sit "..name}
+    for _, cmd in ipairs(cmds) do
+        SendCommand(cmd)
+        task.wait(0.08)
     end
 end
 
@@ -588,6 +625,13 @@ local function handleCommand(msg)
         return
     end
 
+    if cmd == "lay" then
+        if not args[2] then Notify("Usage: .lay <target>") return end
+        layCommand(args[2])
+        Notify("Laid on "..args[2])
+        return
+    end
+
     if cmd == "regen" then
         doRegen()
         Notify("Regen clicked.")
@@ -600,7 +644,7 @@ local function handleCommand(msg)
             return
         end
         task.spawn(regenLoop)
-        Notify("Loopregen started (every 0.5s).")
+        Notify("Loopregen started (1ms).")
         return
     end
 
@@ -651,6 +695,18 @@ local function handleCommand(msg)
         return
     end
 
+    if cmd == "antikill" then
+        antikill_enabled = true
+        Notify("Anti-kill enabled.")
+        return
+    end
+
+    if cmd == "unantikill" then
+        antikill_enabled = false
+        Notify("Anti-kill disabled.")
+        return
+    end
+
     if cmd == "admin" then
         if admin_enabled then
             Notify("Admin loop already running.")
@@ -678,7 +734,7 @@ local function handleCommand(msg)
         end
         loopgrab_enabled = true
         loopgrab_thread = task.spawn(loopgrabLoop)
-        Notify("Loopgrab started .")
+        Notify("Loopgrab started.")
         return
     end
 
@@ -721,8 +777,9 @@ local function handleCommand(msg)
         print(".softlock <target> - punish when character exists")
         print(".unsoftlock - disable softlock")
         print(".makechat <target> <msg> - hint with target name")
+        print(".lay <target> - seizure, reset, freeze, thaw, name, sit")
         print(".regen - click regen once")
-        print(".loopregen - click regen every 0.5s")
+        print(".loopregen - click regen every 1ms")
         print(".stopregen - stop loopregen")
         print(".nkill - remove all TouchInterests from Obby")
         print(".antijail - auto unjail")
@@ -731,6 +788,8 @@ local function handleCommand(msg)
         print(".unantifreeze - disable antifreeze")
         print(".antipunish - auto unpunish when punished")
         print(".unantipunish - disable antipunish")
+        print(".antikill - auto respawn when killed")
+        print(".unantikill - disable antikill")
         print(".admin - loop to get admin (regen if no pad)")
         print(".unadmin - stop admin loop")
         print(".loopgrab - ensure all pads are yours (instant, touches pads)")
@@ -783,7 +842,7 @@ local function createCmdBar()
     box.FocusLost:Connect(function(enter)
         if enter then
             local txt = box.Text
-            if txt and txt ~= "" and txt ~= "" then
+            if txt and txt ~= "" and txt ~= "]" then
                 if string.sub(txt, 1, 1) == prefix then
                     handleCommand(txt)
                 else
