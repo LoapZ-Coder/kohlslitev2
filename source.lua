@@ -82,7 +82,7 @@ local config = {
     explode_count = 100,
     explode_interval = 0.8,
     prefix = prefix,
-    autorun = {".nkill", ".antijail", ".antifreeze", ".autof3x"}
+    autoruncmds = {".admin", ".antifreeze", ".antijail", ".antipunish", ".autof3x", ".nkill"}
 }
 
 local function ensureFolder()
@@ -277,7 +277,7 @@ local function makeChat(target, message)
             formatted = formatted .. c
         end
     end
-    local cmd = "hint \n\n\n\n\n\n\n\n" .. name .. ": " .. formatted .. "\n\n\n\n\n\n\n\n/test"
+    local cmd = "hint \n\n\n\n\n\n\n\n" .. name .. ": " .. formatted .. "\n\n\n\n\n\n\n\n"
     SendCommand(cmd)
 end
 
@@ -819,8 +819,8 @@ task.spawn(createCmdBar)
 
 task.spawn(function()
     task.wait(1)
-    if config.autorun then
-        for _, cmd in ipairs(config.autorun) do
+    if config.autoruncmds then
+        for _, cmd in ipairs(config.autoruncmds) do
             if cmd and cmd ~= "" then
                 local args = string.split(cmd, " ")
                 local cmdName = args[1]:gsub("^"..prefix, "")
