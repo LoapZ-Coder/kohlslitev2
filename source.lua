@@ -1,5 +1,5 @@
 getgenv().scriptname = "KohlsLite"
-getgenv().klversion = "0.1"
+getgenv().klversion = "0.2"
 local prefix = getgenv().prefix or "."
 
 local function SendCommand(cmd)
@@ -82,7 +82,7 @@ local config = {
     explode_count = 100,
     explode_interval = 0.8,
     prefix = prefix,
-    autorun = {".nkill", ".antijail", ".antifreeze"}
+    autorun = {}
 }
 
 local function ensureFolder()
@@ -125,6 +125,7 @@ local function setPrefix(newPrefix)
     end
 end
 
+-- State variables
 local spam_running = false
 local spam_commands = {}
 local spam_index = 1
@@ -146,8 +147,16 @@ local regen_loop_enabled = false
 
 local antijail_enabled = false
 local antifreeze_enabled = false
+local antipunish_enabled = false
 local autof3x_done = false
 
+local admin_enabled = false
+local admin_thread = nil
+
+local loopgrab_enabled = false
+local loopgrab_thread = nil
+
+-- Platform
 local function togglePlatform(on)
     if on then
         if platform_part then platform_part:Destroy() end
@@ -179,6 +188,7 @@ task.spawn(function()
     end
 end)
 
+-- Spam
 local function spamStep()
     if not spam_running or #spam_commands == 0 then return end
     local cmd = spam_commands[spam_index]
@@ -190,6 +200,7 @@ local function spamStep()
     spam_timer = task.delay(config.spam_delay, spamStep)
 end
 
+-- Super
 local function runSuper()
     super_running = true
     for iter = 1, config.super_count do
@@ -204,6 +215,7 @@ local function runSuper()
     Notify("Super finished.")
 end
 
+-- Explode
 local function runExplode(target)
     if not target then target = "me" end
     for i = 1, config.explode_count do
@@ -238,6 +250,7 @@ local function findPlayer(input)
     return nil
 end
 
+-- Softlock
 local function softlockLoop()
     softlock_last_state = nil
     while softlock_enabled and softlock_target do
@@ -256,6 +269,7 @@ local function softlockLoop()
     softlock_last_state = nil
 end
 
+-- Makechat
 local function makeChat(target, message)
     if not target or not message then return end
     local plr = findPlayer(target)
@@ -274,6 +288,7 @@ local function makeChat(target, message)
     SendCommand(cmd)
 end
 
+-- Regen
 local function doRegen()
     local regen = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Regen")
     if regen and regen:FindFirstChild("ClickDetector") then
@@ -295,6 +310,7 @@ local function regenLoop()
     end
 end
 
+-- Nkill
 local function nKill()
     local obby = workspace:FindFirstChild("Tabby"):FindFirstChild("Admin_House"):FindFirstChild("Obby")
     if not obby then
@@ -315,22 +331,33 @@ local function nKill()
     Notify("Removed "..count.." TouchInterests from Obby.")
 end
 
+-- Anti-jail (instant, one-shot)
 task.spawn(function()
+    local lastJailed = false
     while true do
-        task.wait(0.5)
+        task.wait(0.05)
         if antijail_enabled then
             local name = game.Players.LocalPlayer.Name
             local jail = workspace:FindFirstChild(name.."'s jail")
             if jail then
-                SendCommand("unjail me")
+                if not lastJailed then
+                    SendCommand("unjail me")
+                    lastJailed = true
+                end
+            else
+                lastJailed = false
             end
+        else
+            lastJailed = false
         end
     end
 end)
 
+-- Anti-freeze (instant, one-shot)
 task.spawn(function()
+    local lastFrozen = false
     while true do
-        task.wait(0.5)
+        task.wait(0.05)
         if antifreeze_enabled then
             local char = game.Players.LocalPlayer.Character
             if char then
@@ -342,13 +369,106 @@ task.spawn(function()
                     end
                 end
                 if anchored then
-                    SendCommand("unfreeze me")
+                    if not lastFrozen then
+                        SendCommand("unfreeze me")
+                        lastFrozen = true
+                    end
+                else
+                    lastFrozen = false
                 end
+            else
+                lastFrozen = false
             end
+        else
+            lastFrozen = false
         end
     end
 end)
 
+-- Anti-punish (instant, one-shot)
+task.spawn(function()
+    local lastPunished = false
+    while true do
+        task.wait(0.05)
+        if antipunish_enabled then
+            local player = game.Players.LocalPlayer
+            local char = player.Character
+            if not char or not char.Parent or char.Parent ~= workspace then
+                if not lastPunished then
+                    SendCommand("unpunish me")
+                    lastPunished = true
+                end
+            else
+                lastPunished = false
+            end
+        else
+            lastPunished = false
+        end
+    end
+end)
+
+-- Admin loop (try to get admin, regen if no pad available)
+local function adminLoop()
+    while admin_enabled do
+        local playerName = game.Players.LocalPlayer.Name
+        local hasAdmin = false
+        local pads = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Pads")
+        if pads then
+            for _, pad in pairs(pads:GetChildren()) do
+                if pad.Name == playerName .. "'s admin" then
+                    hasAdmin = true
+                    break
+                end
+            end
+            if not hasAdmin then
+                local regen = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Regen")
+                local clicked = false
+                for _, pad in pairs(pads:GetChildren()) do
+                    if pad:FindFirstChild("Head") and pad.Head:FindFirstChild("TouchInterest") then
+                        local head = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("Head")
+                        if head and firetouchinterest then
+                            firetouchinterest(pad.Head, head, 0)
+                            firetouchinterest(pad.Head, head, 1)
+                            firetouchinterest(pad.Head, head, 0)
+                            clicked = true
+                            break
+                        end
+                    end
+                end
+                if not clicked and regen and regen:FindFirstChild("ClickDetector") and fireclickdetector then
+                    fireclickdetector(regen.ClickDetector, 0)
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Loopgrab: check all pads; if any not mine, regen
+local function loopgrabLoop()
+    while loopgrab_enabled do
+        local playerName = game.Players.LocalPlayer.Name
+        local pads = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Pads")
+        if pads then
+            local allMine = true
+            for _, pad in pairs(pads:GetChildren()) do
+                if pad.Name ~= playerName .. "'s admin" then
+                    allMine = false
+                    break
+                end
+            end
+            if not allMine then
+                local regen = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Regen")
+                if regen and regen:FindFirstChild("ClickDetector") and fireclickdetector then
+                    fireclickdetector(regen.ClickDetector, 0)
+                end
+            end
+        end
+        task.wait(0.001) -- 1ms
+    end
+end
+
+-- Command handler
 local function handleCommand(msg)
     local args = string.split(msg, " ")
     local cmd = args[1]:gsub("^"..prefix, "")
@@ -518,6 +638,58 @@ local function handleCommand(msg)
         return
     end
 
+    if cmd == "antipunish" then
+        antipunish_enabled = true
+        Notify("Anti-punish enabled.")
+        return
+    end
+
+    if cmd == "unantipunish" then
+        antipunish_enabled = false
+        Notify("Anti-punish disabled.")
+        return
+    end
+
+    if cmd == "admin" then
+        if admin_enabled then
+            Notify("Admin loop already running.")
+            return
+        end
+        admin_enabled = true
+        admin_thread = task.spawn(adminLoop)
+        Notify("Admin loop started.")
+        return
+    end
+
+    if cmd == "unadmin" then
+        admin_enabled = false
+        if admin_thread then
+            admin_thread = nil
+        end
+        Notify("Admin loop stopped.")
+        return
+    end
+
+    if cmd == "loopgrab" then
+        if loopgrab_enabled then
+            Notify("Loopgrab already running.")
+            return
+        end
+        loopgrab_enabled = true
+        loopgrab_thread = task.spawn(loopgrabLoop)
+        Notify("Loopgrab started.")
+        return
+    end
+
+    if cmd == "unloopgrab" then
+        loopgrab_enabled = false
+        if loopgrab_thread then
+            loopgrab_thread = nil
+        end
+        Notify("Loopgrab stopped.")
+        return
+    end
+
     if cmd == "autof3x" then
         SendCommand("startergive me")
         Notify("F3X starter given.")
@@ -552,10 +724,16 @@ local function handleCommand(msg)
         print(".loopregen - click regen every 0.5s")
         print(".stopregen - stop loopregen")
         print(".nkill - remove all TouchInterests from Obby")
-        print(".antijail - auto unjail when jailed")
+        print(".antijail - auto unjail (instant)")
         print(".unantijail - disable antijail")
-        print(".antifreeze - auto unfreeze when frozen")
+        print(".antifreeze - auto unfreeze (instant)")
         print(".unantifreeze - disable antifreeze")
+        print(".antipunish - auto unpunish when punished (instant)")
+        print(".unantipunish - disable antipunish")
+        print(".admin - loop to get admin (regen if no pad)")
+        print(".unadmin - stop admin loop")
+        print(".loopgrab - ensure all pads are yours (regen if not)")
+        print(".unloopgrab - stop loopgrab")
         print(".autof3x - give F3X starter once")
         print(".prefix <new> - change prefix")
         print(".help - this list")
@@ -576,6 +754,7 @@ game.TextChatService.MessageReceived:Connect(function(tbl)
     end
 end)
 
+-- CmdBar UI
 local function createCmdBar()
     local gui = Instance.new("ScreenGui")
     gui.Name = "CmdBar"
@@ -638,7 +817,7 @@ end
 
 task.spawn(createCmdBar)
 
--- Autorun commands from config
+-- Autorun
 task.spawn(function()
     task.wait(1)
     if config.autorun then
