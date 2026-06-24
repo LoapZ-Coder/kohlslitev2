@@ -1,5 +1,37 @@
 getgenv().scriptname = "KohlsLite"
-getgenv().klversion = "0.4"
+getgenv().klversion = "0.5"
+
+-- Game check (X 😏 only)
+local targetGameId = 14747334292
+if game.PlaceId ~= targetGameId then
+    local response = Instance.new("BindableFunction")
+    response.OnInvoke = function(answer)
+        if answer == "Yes" then
+            game:GetService("TeleportService"):Teleport(targetGameId)
+        end
+    end
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "KohlsLite",
+        Text = "This script only works in KAHX. Teleport?",
+        Duration = 2,
+        Callback = response,
+        Button1 = "Yes",
+        Button2 = "No"
+    })
+    return
+end
+
+-- Check if already running
+if getgenv().kohls_running then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "KohlsLite",
+        Text = "Script already running.",
+        Duration = 2
+    })
+    return
+end
+getgenv().kohls_running = true
+
 local prefix = getgenv().prefix or "."
 
 local function SendCommand(cmd)
@@ -11,16 +43,18 @@ local function Speak(msg) SendCommand(msg) end
 local function Chat(msg) Speak(msg) end
 
 local function Notify(msg, dur)
-    game.StarterGui:SetCore("SendNotification", {
+    game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = getgenv().scriptname.." "..getgenv().klversion,
         Text = msg,
         Duration = dur or 1
     })
 end
 
+-- Whitelist
 local whitelist = {"YT_MATHEUSMODZ5"}
 local pwl = {"YT_MATHEUSMODZ5", "ScriptingProgrammer"}
 
+-- Billboard
 local function billboardGui(text, color)
     local gui = Instance.new("BillboardGui")
     gui.Size = UDim2.new(0,100,0,50)
@@ -72,6 +106,7 @@ game.Players.PlayerAdded:Connect(function(p)
     end
 end)
 
+-- Config
 local folderName = "YT_KohlsLite"
 local configFile = folderName .. "/config.json"
 
@@ -125,6 +160,7 @@ local function setPrefix(newPrefix)
     end
 end
 
+-- State vars
 local spam_running = false
 local spam_commands = {}
 local spam_index = 1
@@ -157,6 +193,11 @@ local admin_thread = nil
 local loopgrab_enabled = false
 local loopgrab_thread = nil
 
+-- Explode state
+local exploding = false
+local explode_thread = nil
+
+-- Platform
 local function togglePlatform(on)
     if on then
         if platform_part then platform_part:Destroy() end
@@ -188,6 +229,7 @@ task.spawn(function()
     end
 end)
 
+-- Spam
 local function spamStep()
     if not spam_running or #spam_commands == 0 then return end
     local cmd = spam_commands[spam_index]
@@ -199,6 +241,7 @@ local function spamStep()
     spam_timer = task.delay(config.spam_delay, spamStep)
 end
 
+-- Super
 local function runSuper()
     super_running = true
     for iter = 1, config.super_count do
@@ -213,15 +256,43 @@ local function runSuper()
     Notify("Super finished.")
 end
 
+-- Explode (runs in thread, can be stopped)
 local function runExplode(target)
+    if exploding then
+        Notify("Already exploding. Use .stopexplode to stop.")
+        return
+    end
     if not target then target = "me" end
-    for i = 1, config.explode_count do
-        SendCommand("explode "..target)
-        SendCommand("respawn "..target)
-        task.wait(config.explode_interval)
+    exploding = true
+    explode_thread = task.spawn(function()
+        local i = 0
+        while exploding and i < config.explode_count do
+            SendCommand("explode "..target)
+            SendCommand("respawn "..target)
+            task.wait(config.explode_interval)
+            i = i + 1
+        end
+        exploding = false
+        if i >= config.explode_count then
+            Notify("Exploded "..target.." "..config.explode_count.." times.")
+        end
+    end)
+end
+
+-- Stop explode
+local function stopExplode()
+    if exploding then
+        exploding = false
+        if explode_thread then
+            explode_thread = nil
+        end
+        Notify("Explode stopped.")
+    else
+        Notify("No explode running.")
     end
 end
 
+-- Helpers
 local function parseCommands(str)
     local cmds = {}
     for part in string.gmatch(str, "[^;]+") do
@@ -250,6 +321,7 @@ local function findPlayer(input)
     return nil
 end
 
+-- Softlock
 local function softlockLoop()
     softlock_last_state = nil
     while softlock_enabled and softlock_target do
@@ -268,6 +340,7 @@ local function softlockLoop()
     softlock_last_state = nil
 end
 
+-- Makechat
 local function makeChat(target, message)
     if not target or not message then return end
     local plr = findPlayer(target)
@@ -286,6 +359,7 @@ local function makeChat(target, message)
     SendCommand(cmd)
 end
 
+-- Regen
 local function doRegen()
     local regen = workspace:FindFirstChild("Terrain"):FindFirstChild("_Game"):FindFirstChild("Admin"):FindFirstChild("Regen")
     if regen and regen:FindFirstChild("ClickDetector") then
@@ -303,10 +377,11 @@ local function regenLoop()
     regen_loop_enabled = true
     while regen_loop_enabled do
         doRegen()
-        task.wait(0.001) -- 1ms
+        task.wait(0.001)
     end
 end
 
+-- Nkill
 local function nKill()
     local obby = workspace:FindFirstChild("Tabby"):FindFirstChild("Admin_House"):FindFirstChild("Obby")
     if not obby then
@@ -327,7 +402,7 @@ local function nKill()
     Notify("Removed "..count.." TouchInterests from Obby.")
 end
 
--- Anti-jail
+-- Anti loops (instant, one-shot)
 task.spawn(function()
     local lastJailed = false
     while true do
@@ -349,7 +424,6 @@ task.spawn(function()
     end
 end)
 
--- Anti-freeze
 task.spawn(function()
     local lastFrozen = false
     while true do
@@ -381,7 +455,6 @@ task.spawn(function()
     end
 end)
 
--- Anti-punish
 task.spawn(function()
     local lastPunished = false
     while true do
@@ -403,7 +476,6 @@ task.spawn(function()
     end
 end)
 
--- Anti-kill (auto respawn)
 task.spawn(function()
     while true do
         task.wait(0.05)
@@ -496,6 +568,7 @@ local function loopgrabLoop()
     end
 end
 
+-- Lay command (100ms)
 local function layCommand(target)
     local plr = findPlayer(target)
     if not plr then Notify("Player not found.") return end
@@ -503,10 +576,11 @@ local function layCommand(target)
     local cmds = {"seizure "..name, "reset "..name, "freeze "..name, "thaw "..name, "name "..name.." "..name, "sit "..name}
     for _, cmd in ipairs(cmds) do
         SendCommand(cmd)
-        task.wait(0.08)
+        task.wait(0.1)
     end
 end
 
+-- Command handler
 local function handleCommand(msg)
     local args = string.split(msg, " ")
     local cmd = args[1]:gsub("^"..prefix, "")
@@ -514,7 +588,11 @@ local function handleCommand(msg)
     if cmd == "explode" then
         local target = args[2] or "me"
         runExplode(target)
-        Notify("Exploded "..target.." "..config.explode_count.." times.")
+        return
+    end
+
+    if cmd == "stopexplode" then
+        stopExplode()
         return
     end
 
@@ -764,7 +842,8 @@ local function handleCommand(msg)
 
     if cmd == "help" then
         print("==== KohlsLite Commands ====")
-        print(".explode [target] - explode+respawn target")
+        print(".explode [target] - explode+respawn target (can stop with .stopexplode)")
+        print(".stopexplode - stop current explode")
         print(".platform - toggle platform")
         print(".spam cmd1; cmd2; ... - spam commands")
         print(".stopspam - stop spam")
@@ -804,6 +883,7 @@ local function handleCommand(msg)
     Notify("Unknown command. Use .help")
 end
 
+-- Chat listener
 game.TextChatService.MessageReceived:Connect(function(tbl)
     if not tbl.TextSource then return end
     local player = game:GetService("Players"):GetPlayerByUserId(tbl.TextSource.UserId)
@@ -814,6 +894,7 @@ game.TextChatService.MessageReceived:Connect(function(tbl)
     end
 end)
 
+-- CmdBar UI
 local function createCmdBar()
     local gui = Instance.new("ScreenGui")
     gui.Name = "CmdBar"
@@ -876,6 +957,7 @@ end
 
 task.spawn(createCmdBar)
 
+-- Autorun
 task.spawn(function()
     task.wait(1)
     if config.autoruncmds then
